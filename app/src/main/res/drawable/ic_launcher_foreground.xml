@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft outer glow -->
+    <path android:pathData="M54,54 m-30,0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="30"
+                android:startColor="#337C5CFF"
+                android:endColor="#007C5CFF" />
+        </aapt:attr>
+    </path>
+
+    <!-- Core orb -->
+    <path android:pathData="M54,54 m-19,0 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="48"
+                android:centerY="48"
+                android:gradientRadius="24"
+                android:startColor="#FFB6A0FF"
+                android:endColor="#FF7C5CFF" />
+        </aapt:attr>
+    </path>
+
+    <!-- Fine rim highlight -->
+    <path
+        android:pathData="M54,54 m-21.5,0 a21.5,21.5 0 1,0 43,0 a21.5,21.5 0 1,0 -43,0"
+        android:strokeColor="#8CD8C8FF"
+        android:strokeWidth="1"
+        android:fillColor="#00000000" />
+
+</vector>
