@@ -47,15 +47,44 @@ class ModelProvisioner(private val context: Context) {
             }
         }
 
-        // 2. LLM model — bundled as assets/<LLM_MODEL_FILENAME> (or split parts, see copyAssetSplit)
+        import android.os.Environment
+
+        // 2. Gemma model check
         if (!llmModelFile.exists()) {
-            onProgress(Progress.Status("Copying language model (this can take a minute)…"))
-            runCatching {
-                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
-            }.onFailure { e ->
-                onProgress(Progress.Error("LLM error: ${e.message}"))
-                return@withContext
-            }
+                val downloadsFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val downloadModelFile = File(downloadsFolder, LLM_MODEL_FILENAME)
+
+                        if (downloadModelFile.exists()) {
+                                    // Agar file Download folder mein mojood hai:
+                                            onProgress(Progress.Preparing("Copying model from Downloads folder..."))
+                                                    runCatching {
+                                                                    downloadModelFile.inputStream().use { input ->
+                                                                                    FileOutputStream(llmModelFile).use { output ->
+                                                                                                        input.copyTo(output, bufferSize = 1 shl 20)
+                                                                                                                        }
+                                                                                                                                    }
+                                                    }.onFailure {
+                                                                    onProgress(Progress.Error("Failed to copy model from Downloads"))
+                                                                                return@withContext
+                                                    }
+                        } else {
+                                    // Agar Download mein nahi hai, toh Assets se try karein:
+                                            onProgress(Progress.Preparing("Copying language model..."))
+                                                    runCatching {
+                                                                    copyAsset(LLM_MODEL_FILENAME, llmModelFile)
+                                                    }.onFailure {
+                                                                    onProgress(Progress.Error("Setup incomplete — Place $LLM_MODEL_FILENAME in Downloads folder!"))
+                                                                                return@withContext
+                                                    }
+                        }
+        }
+        
+                                                    }
+                                                    }
+                        }
+                                                    }
+                                                    }
+                        }
         }
 
         onProgress(Progress.Done(isFullyProvisioned()))
