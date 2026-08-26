@@ -7,15 +7,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
-/**
- * Handles one-time setup on first launch: unpacks the Vosk model (bundled as
- * a zip in assets/) and copies the LLM model file into app-private storage,
- * so the user never has to `adb push` anything manually. Put the actual
- * model files in `app/src/main/assets/` before building — see README.md.
- *
- * Safe to call on every service start; each step short-circuits if its
- * target already exists.
- */
 class ModelProvisioner(private val context: Context) {
 
     sealed class Progress {
@@ -29,14 +20,12 @@ class ModelProvisioner(private val context: Context) {
     val voskModelDir = File(modelsDir, "vosk-model-small-en-us")
     val llmModelFile = File(modelsDir, LLM_MODEL_FILENAME)
 
-    /** Returns true once both required assets are present on disk (models already provisioned). */
     fun isFullyProvisioned(): Boolean =
         voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true && llmModelFile.exists()
 
     suspend fun provision(onProgress: (Progress) -> Unit) = withContext(Dispatchers.IO) {
         modelsDir.mkdirs()
 
-        // 1. Vosk model — bundled as assets/vosk-model-small-en-us.zip
         if (!voskModelDir.exists() || voskModelDir.listFiles()?.isEmpty() != false) {
             onProgress(Progress.Status("Unpacking speech recognition model…"))
             runCatching {
@@ -47,38 +36,15 @@ class ModelProvisioner(private val context: Context) {
             }
         }
 
-        import android.os.Environment
-
-// 2. Gemma model check
-if (!llmModelFile.exists()) {
-    val downloadsFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    val downloadModelFile = File(downloadsFolder, LLM_MODEL_FILENAME)
-
-    if (downloadModelFile.exists()) {
-        // Agar file Download folder mein mojood hai:
-        onProgress(Progress.Preparing("Copying model from Downloads folder..."))
-        runCatching {
-            downloadModelFile.inputStream().use { input ->
-                FileOutputStream(llmModelFile).use { output ->
-                    input.copyTo(output, bufferSize = 1 shl 20)
-                }
+        if (!llmModelFile.exists()) {
+            onProgress(Progress.Status("Copying language model (this can take a minute)…"))
+            runCatching {
+                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
+            }.onFailure { e ->
+                onProgress(Progress.Error("LLM error: ${e.message}"))
+                return@withContext
             }
-        }.onFailure {
-            onProgress(Progress.Error("Failed to copy model from Downloads"))
-            return@withContext
         }
-    } else {
-        // Agar Download mein nahi hai, toh Assets se try karein:
-        onProgress(Progress.Preparing("Copying language model..."))
-        runCatching {
-            copyAsset(LLM_MODEL_FILENAME, llmModelFile)
-        }.onFailure {
-            onProgress(Progress.Error("Setup incomplete — Place $LLM_MODEL_FILENAME in Downloads folder!"))
-            return@withContext
-        }
-    }
-}
-
 
         onProgress(Progress.Done(isFullyProvisioned()))
     }
@@ -110,7 +76,6 @@ if (!llmModelFile.exists()) {
 
     companion object {
         private const val VOSK_ASSET_NAME = "vosk-model-small-en-us.zip"
-        // MediaPipe LLM Inference expects a .task bundle (e.g. Gemma 3 1B IT, int4).
         const val LLM_MODEL_FILENAME = "gemma3-1b-it-int4.task"
     }
 }
