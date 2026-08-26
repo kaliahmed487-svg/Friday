@@ -20,31 +20,34 @@ class ModelProvisioner(private val context: Context) {
                 val voskModelDir = File(modelsDir, "vosk-model-small-en-us")
                     val llmModelFile = File(modelsDir, LLM_MODEL_FILENAME)
 
-                        fun isFullyProvisioned(): Boolean =
-                                voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true && llmModelFile.exists()
+    /** Returns true once both required assets are present on disk (models already provisioned). */
+    fun isFullyProvisioned(): Boolean =
+        voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true && llmModelFile.exists()
 
                                     suspend fun provision(onProgress: (Progress) -> Unit) = withContext(Dispatchers.IO) {
                                                 modelsDir.mkdirs()
 
-                                                        if (!voskModelDir.exists() || voskModelDir.listFiles()?.isEmpty() != false) {
-                                                                        onProgress(Progress.Status("Unpacking speech recognition model…"))
-                                                                                    runCatching {
-                                                                                                        unzipAsset(VOSK_ASSET_NAME, modelsDir)
-                                                                                    }.onFailure { e ->
-                                                                                                    onProgress(Progress.Error("Vosk error: ${e.message}"))
-                                                                                                                    return@withContext
-                                                                                                                                }
-                                                        }
+        // 1. Vosk model — bundled as assets/vosk-model-small-en-us.zip
+        if (!voskModelDir.exists() || voskModelDir.listFiles()?.isEmpty() != false) {
+            onProgress(Progress.Status("Unpacking speech recognition model…"))
+            runCatching {
+                unzipAsset(VOSK_ASSET_NAME, modelsDir)
+            }.onFailure { e ->
+                onProgress(Progress.Error("Vosk error: ${e.message}"))
+                return@withContext
+            }
+        }
 
-                                                                if (!llmModelFile.exists()) {
-                                                                                onProgress(Progress.Status("Copying language model (this can take a minute)…"))
-                                                                                            runCatching {
-                                                                                                                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
-                                                                                            }.onFailure { e ->
-                                                                                                            onProgress(Progress.Error("LLM error: ${e.message}"))
-                                                                                                                            return@withContext
-                                                                                                                                        }
-                                                                }
+        // 2. LLM model — bundled as assets/<LLM_MODEL_FILENAME> (or split parts, see copyAssetSplit)
+        if (!llmModelFile.exists()) {
+            onProgress(Progress.Status("Copying language model (this can take a minute)…"))
+            runCatching {
+                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
+            }.onFailure { e ->
+                onProgress(Progress.Error("LLM error: ${e.message}"))
+                return@withContext
+            }
+        }
 
                                                                         onProgress(Progress.Done(isFullyProvisioned()))
                                     }
@@ -74,21 +77,9 @@ class ModelProvisioner(private val context: Context) {
                                                                             }
                                             }
 
-                                                companion object {
-                                                            private const val VOSK_ASSET_NAME = "vosk-model-small-en-us.zip"
-                                                                    const val LLM_MODEL_FILENAME = "gemma3-1b-it-int4.task"
-                                                }
-}
-                                                }
-                                            }
-                                                                                                                                            }
-                                                                                                                                            }
-                                                                                                }}}
-                                        }
-                                                                                            }
-                                                                }
-                                                                                    }
-                                                        }
-                                    }
-        }
+    companion object {
+        private const val VOSK_ASSET_NAME = "vosk-model-small-en-us.zip"
+        // MediaPipe LLM Inference expects a .task bundle (e.g. Gemma 3 1B IT, int4).
+        const val LLM_MODEL_FILENAME = "gemma3-1b-it-int4.task"
+    }
 }
