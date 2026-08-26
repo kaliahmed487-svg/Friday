@@ -20,66 +20,92 @@ class ModelProvisioner(private val context: Context) {
                 val voskModelDir = File(modelsDir, "vosk-model-small-en-us")
                     val llmModelFile = File(modelsDir, LLM_MODEL_FILENAME)
 
-    /** Returns true once both required assets are present on disk (models already provisioned). */
-    fun isFullyProvisioned(): Boolean =
-        voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true && llmModelFile.exists()
+                        fun isFullyProvisioned(): Boolean =
+                                voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true && llmModelFile.exists()
 
                                     suspend fun provision(onProgress: (Progress) -> Unit) = withContext(Dispatchers.IO) {
                                                 modelsDir.mkdirs()
 
-        // 1. Vosk model — bundled as assets/vosk-model-small-en-us.zip
-        if (!voskModelDir.exists() || voskModelDir.listFiles()?.isEmpty() != false) {
-            onProgress(Progress.Status("Unpacking speech recognition model…"))
-            runCatching {
-                unzipAsset(VOSK_ASSET_NAME, modelsDir)
-            }.onFailure { e ->
-                onProgress(Progress.Error("Vosk error: ${e.message}"))
-                return@withContext
-            }
-        }
+                                                        if (!voskModelDir.exists() || voskModelDir.listFiles()?.isEmpty() != false) {
+                                                                        onProgress(Progress.Status("Unpacking speech recognition model…"))
+                                                                                    runCatching {
+                                                                                                        unzipAsset(VOSK_ASSET_NAME, modelsDir)
+                                                                                                                        normalizeVoskFolder()
+                                                                                    }.onFailure { e ->
+                                                                                                    onProgress(Progress.Error("Vosk error: ${e.message}"))
+                                                                                                                    return@withContext
+                                                                                                                                }
+                                                        }
 
-        // 2. LLM model — bundled as assets/<LLM_MODEL_FILENAME> (or split parts, see copyAssetSplit)
-        if (!llmModelFile.exists()) {
-            onProgress(Progress.Status("Copying language model (this can take a minute)…"))
-            runCatching {
-                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
-            }.onFailure { e ->
-                onProgress(Progress.Error("LLM error: ${e.message}"))
-                return@withContext
-            }
-        }
+                                                                if (!llmModelFile.exists()) {
+                                                                                onProgress(Progress.Status("Copying language model (this can take a minute)…"))
+                                                                                            runCatching {
+                                                                                                                copyAsset(LLM_MODEL_FILENAME, llmModelFile)
+                                                                                            }.onFailure { e ->
+                                                                                                            onProgress(Progress.Error("LLM error: ${e.message}"))
+                                                                                                                            return@withContext
+                                                                                                                                        }
+                                                                }
 
                                                                         onProgress(Progress.Done(isFullyProvisioned()))
                                     }
 
-                                        private fun unzipAsset(assetName: String, destDir: File) {
-                                                    context.assets.open(assetName).use { input ->
-                                                                ZipInputStream(input).use { zis ->
-                                                                                var entry = zis.nextEntry
-                                                                                                while (entry != null) {
-                                                                                                                        val outFile = File(destDir, entry.name)
-                                                                                                                                            if (entry.isDirectory) {
-                                                                                                                                                                        outFile.mkdirs()
-                                                                                                                                            } else {
-                                                                                                                                                                        outFile.parentFile?.mkdirs()
-                                                                                                                                                                                                FileOutputStream(outFile).use { fos -> zis.copyTo(fos) }
-                                                                                                                                            }
-                                                                                                                                                                zis.closeEntry()
-                                                                                                                                                                                    entry = zis.nextEntry
+                                        /**
+                                             * The Vosk zip's internal folder is often named with a version suffix
+                                                  * (e.g. "vosk-model-small-en-us-0.15") rather than exactly matching
+                                                       * voskModelDir's expected name. If extraction produced a differently-named
+                                                            * folder, find it and rename it so the app can locate it.
+                                                                 */
+                                                                     private fun normalizeVoskFolder() {
+                                                                                if (voskModelDir.exists() && voskModelDir.listFiles()?.isNotEmpty() == true) return
+                                                                                        val candidate = modelsDir.listFiles()?.firstOrNull {
+                                                                                                        it.isDirectory && it.name.startsWith("vosk-model") && it.absolutePath != voskModelDir.absolutePath
+                                                                                        }
+                                                                                                candidate?.renameTo(voskModelDir)
+                                                                     }
+
+                                                                         private fun unzipAsset(assetName: String, destDir: File) {
+                                                                                    context.assets.open(assetName).use { input ->
+                                                                                                ZipInputStream(input).use { zis ->
+                                                                                                                var entry = zis.nextEntry
+                                                                                                                                while (entry != null) {
+                                                                                                                                                        val outFile = File(destDir, entry.name)
+                                                                                                                                                                            if (entry.isDirectory) {
+                                                                                                                                                                                                        outFile.mkdirs()
+                                                                                                                                                                            } else {
+                                                                                                                                                                                                        outFile.parentFile?.mkdirs()
+                                                                                                                                                                                                                                FileOutputStream(outFile).use { fos -> zis.copyTo(fos) }
+                                                                                                                                                                            }
+                                                                                                                                                                                                zis.closeEntry()
+                                                                                                                                                                                                                    entry = zis.nextEntry
+                                                                                                                                }
                                                                                                 }
+                                                                                    }
+                                                                         }
+
+                                                                             private fun copyAsset(assetName: String, destFile: File) {
+                                                                                        context.assets.open(assetName).use { input ->
+                                                                                                    FileOutputStream(destFile).use { output -> input.copyTo(output, bufferSize = 1 shl 20) }
+                                                                                                            }
+                                                                             }
+
+                                                                                 companion object {
+                                                                                            private const val VOSK_ASSET_NAME = "vosk-model-small-en-us.zip"
+                                                                                                    const val LLM_MODEL_FILENAME = "gemma3-1b-it-int4.task"
+                                                                                 }
+}
+                                                                                 }
+                                                                             }
+                                                                                                                                                                            }
+                                                                                                                                                                            }
+                                                                                                                                }}}
+                                                                         }
+                                                                                        }
+                                                                     }
+                                                                                            }
                                                                 }
-                                                    }
-                                        }
-
-                                            private fun copyAsset(assetName: String, destFile: File) {
-                                                        context.assets.open(assetName).use { input ->
-                                                                    FileOutputStream(destFile).use { output -> input.copyTo(output, bufferSize = 1 shl 20) }
-                                                                            }
-                                            }
-
-    companion object {
-        private const val VOSK_ASSET_NAME = "vosk-model-small-en-us.zip"
-        // MediaPipe LLM Inference expects a .task bundle (e.g. Gemma 3 1B IT, int4).
-        const val LLM_MODEL_FILENAME = "gemma3-1b-it-int4.task"
-    }
+                                                                                    }
+                                                        }
+                                    }
+        }
 }
