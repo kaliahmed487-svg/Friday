@@ -37,7 +37,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("task", "tflite")
+        noCompress += listOf("task", "tflite", "zip")
     }
 }
 
